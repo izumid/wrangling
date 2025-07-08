@@ -300,7 +300,7 @@ def main():
 	column_add_file_control = int(config["COLUMN"]["add_file_control"])
 
 	row_stop_first_blank = int(config["ROW"]["stop_first_blank"])
-	row_drop_duplicate = int(config["ROW"]["drop_duplicate_registry"])
+	row_drop_duplicate = int(config["ROW"]["drop_duplicate"])
 	drop_thresh_blank = int(config["ROW"]["drop_thresh_blank"])
 
 	# Debug/monitoring
