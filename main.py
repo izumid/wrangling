@@ -100,9 +100,9 @@ def transform(
 							#print(name,list(sheet.columns))
 							debug_code(debug,"02->Sheet name", name)
 							
-							if column_skip > 0: sheet = sheet.iloc[:,column_skip:]
+							if column_skip != '': sheet = sheet.iloc[:,int(column_skip):]
 							
-							if column_stop_first_blank:
+							if '1' in column_stop_first_blank:
 								time_start = datetime.datetime.now()
 								# debug_code(debug,"File columns", sheet.columns)
 								idx = column_first_blank(sheet.columns,"Unnamed:")
@@ -120,12 +120,12 @@ def transform(
 
 							if not header_adjust_model is None: sheet.columns = header_transform(header_current, header_adjust_model)
 
-							if row_stop_first_blank:
+							if '1' in row_stop_first_blank:
 								idx_first_empty_row = sheet.isna().all(axis=1).idxmax()
 								sheet = sheet[:idx_first_empty_row:]
 							
 							if not(len(column_not_null) == 1 and column_not_null[0] ==''):
-								if row_stop_first_blank:
+								if '1' in row_stop_first_blank:
 									idx_first_empty_row = sheet[column_not_null].isna().all(axis=1).idxmax()
 									sheet = sheet[:idx_first_empty_row:]
 								
@@ -138,7 +138,7 @@ def transform(
 								log_time(logtime,"07->[Time] Filter dataset",datetime.datetime.now()-time_start)
 							
 					
-							if drop_thresh_blank > 0: 
+							if drop_thresh_blank != '': 
 								if drop_thresh_blank >= 1: drop_thresh_blank = drop_thresh_blank-1
 
 								debug_code(debug,"08->Remove row if blank column is",drop_thresh_blank)
@@ -153,7 +153,7 @@ def transform(
 									if column_name in sheet.columns: sheet.drop(columns=str(column_name), inplace=True)
 									print("done")"""
 
-							if row_drop_duplicate:
+							if '1' in row_drop_duplicate:
 								time_start = datetime.datetime.now()
 								sheet.drop_duplicates(inplace=True,keep="last")
 								log_time(logtime,"[Time] Drop duplicates",datetime.datetime.now()-time_start)
@@ -162,13 +162,13 @@ def transform(
 							sheet.dropna(axis=0, how="all", inplace=True)
 							log_time(logtime,"[Time] remove empty row",datetime.datetime.now()-time_start)
 
-							if column_add_file_control:
+							if '1' in column_add_file_control:
 								sheet.insert(0,"filename",Path(filename).stem)
 								sheet.insert(1,"sheet",str(name))
 
 							time_start = datetime.datetime.now()
 
-							if post_merge: path_absolute_destination = os.path.join(path_destination,f"{str(count)}_{name}.feather")
+							if '1' in post_merge: path_absolute_destination = os.path.join(path_destination,f"{str(count)}_{name}.feather")
 							else: path_absolute_destination = os.path.join(path_destination,f"{name}.feather")
 							debug_code(debug,"09->Save file in",path_absolute_destination)
 							sheet.to_feather(path_absolute_destination)
@@ -195,7 +195,7 @@ def header_format(path_temp,filename,idx_or_name=False,header_row=False,line_num
 				if Path(filename).suffix == ".csv": df = pd.read_csv(filename, sep=";", nrows=line_number, dtype=str,encoding="utf-8-sig")
 				else: df = pd.read_excel(io=filename,header=header_row,sheet_name=idx_or_name,na_values=["","-"],dtype=str,nrows=line_number)
 
-				if column_skip > 0: df = df.iloc[column_skip:]
+				if column_skip != '': df = df.iloc[column_skip:]
 
 				current_header = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in df.columns]
 
@@ -215,7 +215,7 @@ def header_format(path_temp,filename,idx_or_name=False,header_row=False,line_num
 
 		complete_header = [x for x in previous_header if x not in unique_columns] + unique_columns
 		
-		if add_file_columns == 1:
+		if '1' in add_file_columns:
 			complete_header.insert(0,complete_header.pop(complete_header.index('filename')))
 			complete_header.insert(1,complete_header.pop(complete_header.index('sheet')))
 			if "idx" in complete_header: complete_header.insert(0,complete_header.pop(complete_header.index('idx')))
@@ -277,13 +277,13 @@ def main():
 	if not os.path.exists(path_temp): os.makedirs(path_temp)
 
 	# Transform and load data (T.L)
-	post_merge = int(config["MODE"]["post_merge"])
+	post_merge = config["MODE"]["post_merge"]
 	idx_or_name = idx_name(config["MODE"]["sheet_identification"])
 
 	filename = config["FILE"]["name"] + ".csv"
 	name_sheet = config["FILE"]["name_sheet"].lower().split(",")
 	
-	header_row = int(config["HEADER"]["row"])
+	header_row = config["HEADER"]["row"]
 	header_adjust_model = config["HEADER"]["adjust_model"]
 	if header_adjust_model != [""]:
 		v = [x.lower().split(',') for x in header_adjust_model.split(';')]
@@ -291,21 +291,21 @@ def main():
 		header_adjust_model = [k,v]
 	else: header_adjust_model = None
 
-	column_skip = int(config["COLUMN"]["skip"])
+	column_skip = config["COLUMN"]["skip"]
 	if column_skip > 2: column_skip = column_skip-1
 	column_not_null = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["not_null"].split(",")]
 	column_drop = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["drop"].split(",")]
 	column_drop_num_name = config["COLUMN"]["drop_num_name"]
-	column_stop_first_blank = int(config["COLUMN"]["stop_first_blank"])
-	column_add_file_control = int(config["COLUMN"]["add_file_control"])
+	column_stop_first_blank = config["COLUMN"]["stop_first_blank"]
+	column_add_file_control = config["COLUMN"]["add_file_control"]
 
-	row_stop_first_blank = int(config["ROW"]["stop_first_blank"])
-	row_drop_duplicate = int(config["ROW"]["drop_duplicate"])
-	drop_thresh_blank = int(config["ROW"]["drop_thresh_blank"])
+	row_stop_first_blank = config["ROW"]["stop_first_blank"]
+	row_drop_duplicate = config["ROW"]["drop_duplicate"]
+	drop_thresh_blank = config["ROW"]["drop_thresh_blank"]
 
 	# Debug/monitoring
-	logtime = int(config["DEBUG"]["logtime"])
-	debug= int(config["DEBUG"]["on"])
+	logtime = config["DEBUG"]["logtime"]
+	debug= config["DEBUG"]["on"]
 	time_start =  datetime.datetime.now()
 
 	transform(
@@ -323,7 +323,7 @@ def main():
 			join(path_temp,header_standardized,path_destination,logtime,debug=False)
 			delete_tempfile(path_temp,filename,logtime,debug=False)
 			
-		if int(config["CONFIG"]["save"]) == 1:
+		if '1' in config["CONFIG"]["save"]:
 			gcf.generate(
 				path_in=os.getcwd()
 				,path_out=config["CONFIG"]["path_out"].replace("custom",windows_username)
