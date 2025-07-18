@@ -15,6 +15,6 @@ analyses.py
 
 # Ignore files with extension
 *.txt
-
+*.exe
 # Dont Ignore files below
 !Requirements.txt
