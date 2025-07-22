@@ -66,19 +66,21 @@ def is_num(value):
 #drop_numbered_col
 def col_drop(column_drop,column_drop_number,dataframe):
 	# Drop just listed numnered columns
+	
 	if column_drop:
-		print(column_drop)
+		header = dataframe.columns.to_list()
 		for column_name in column_drop:
-			if column_name in dataframe.columns: 
+			if column_name in header: 
 				dataframe.drop(columns=column_name, inplace=True)
-
+				
 	# Drop all numbered columns
 	#if (column_drop == ' ' or column_drop[0] == ''):
 	if '1' in column_drop_number:
 		bool_array = [is_num(x) for x in dataframe.columns]
+		bool_array = [str(x).isdigit() for x in dataframe.columns]		
 		bool_array = np.array(bool_array)
 		dataframe = dataframe.loc[:, ~bool_array]
-	
+
 
 # MARK: Transform Data
 def transform(
@@ -118,7 +120,14 @@ def transform(
 							#debug_code(debug, "Datataframe informations", sheet.info())
 							debug_code(debug, "04->Datataframe shape", sheet.shape)
 							
-							col_drop(column_drop=column_drop,column_drop_number=column_drop_number,dataframe=sheet)
+							#col_drop(column_drop=column_drop,column_drop_number=column_drop_number,dataframe=sheet)
+								
+							if column_drop:
+								sheet.drop(columns=[x for x in sheet.columns.to_list() if x in column_drop], inplace=True)
+		
+										
+							if '1' in column_drop_number:
+								sheet.drop(columns=[col for col in sheet.columns if str(col).isdigit()],inplace=True)
 
 							#sheet.columns = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in sheet.columns]	
 							header_current = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in sheet.columns]	
@@ -310,6 +319,8 @@ def main():
 	if column_skip > 2: column_skip = column_skip-1
 	column_not_null = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["not_null"].split(",")]
 	column_drop = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["drop"].split(",")]
+	column_drop =  [int(x) if str(x).isdigit() else x for x in column_drop]
+
 	column_drop_number = config["COLUMN"]["drop_number"]
 	column_stop_first_blank = config["COLUMN"]["stop_first_blank"]
 	column_add_file_control = config["COLUMN"]["add_file_control"]
@@ -337,7 +348,7 @@ def main():
 		#header_standardized = header_format(path_temp,filename,idx_or_name=False,header_start_row=header_start_row,row_skip=row_skip,debug=False,logtime=logtime,add_file_columns='0',column_skip=column_skip)
 		header_standardized = header_format(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
 		join(path_temp=path_temp,header_standardized=header_standardized,path_destination=path_destination,filename=filename,logtime=logtime,debug=False)
-		delete_tempfile(path_temp,filename,logtime,debug=False)
+		#delete_tempfile(path_temp,filename,logtime,debug=False)
 			
 	if '1' in config["CONFIG"]["save"]:
 		gcf.generate(
