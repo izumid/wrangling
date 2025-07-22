@@ -66,7 +66,8 @@ def is_num(value):
 #drop_numbered_col
 def col_drop(column_drop,column_drop_number,dataframe):
 	# Drop just listed numnered columns
-	if '1' in column_drop:
+	if column_drop:
+		print(column_drop)
 		for column_name in column_drop:
 			if column_name in dataframe.columns: 
 				dataframe.drop(columns=column_name, inplace=True)
@@ -243,22 +244,24 @@ def header_format(path_temp,column_add_file_control,debug=False,logtime=False):
 
 
 # MARK: Join Data
-def join(path_temp,header_standardized,path_destination,logtime,debug=False):
+def join(path_temp,header_standardized,path_destination,filename,logtime,debug=False):
 	time_start =  datetime.datetime.now()
 	data = []
-
-	for filename in sorted(os.listdir(path_temp)):
-		filename = os.path.join(path_temp,filename)
-		if os.path.isfile(filename):
-			debug_code(debug,"06->filename",filename)
-			df = pd.read_feather(filename)
+	
+	for temp_filename in sorted(os.listdir(path_temp)):
+		path_absolute = os.path.join(path_temp,temp_filename)
+		if os.path.isfile(path_absolute):
+			debug_code(debug,"06->filename",path_absolute)
+			df = pd.read_feather(path_absolute)
 			df = df.reindex(df.columns.union(header_standardized, sort=False), axis=1, fill_value=None)
 			df = df.reindex(header_standardized,axis=1)
 			df = df.dropna(axis=0, how="all")
 			data.append(df)
 
 	data = pd.concat(data)
-	data.to_feather(path_destination)
+
+	if not os.path.exists(path_destination): os.makedirs(path_destination)
+	data.to_feather(os.path.join(path_destination,filename))
 
 	log_time(logtime,"Get data",datetime.datetime.now()-time_start)
 
@@ -330,22 +333,20 @@ def main():
 		,row_stop_first_blank=row_stop_first_blank,row_drop_duplicate=row_drop_duplicate,drop_thresh_blank=drop_thresh_blank
 		,post_merge=post_merge,logtime=logtime,debug=debug
 	)
-
-	if 1==1:
-		if '1' in post_merge:
-			#header_standardized = header_format(path_temp,filename,idx_or_name=False,header_start_row=header_start_row,row_skip=row_skip,debug=False,logtime=logtime,add_file_columns='0',column_skip=column_skip)
-			header_standardized = header_format(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
-			join(path_temp,header_standardized,os.path.join(path_destination,filename),logtime,debug=False)
-			delete_tempfile(path_temp,filename,logtime,debug=False)
-				
-		if '1' in config["CONFIG"]["save"]:
-			gcf.generate(
-				path_in=os.getcwd()
-				,path_out=config["CONFIG"]["path_out"].replace("custom",windows_username)
-				,name="config"
-				,name_new=config["FILE"]["name"]
-				,summary=config["CONFIG"]["summary"]
-			)
+	if '1' in post_merge:
+		#header_standardized = header_format(path_temp,filename,idx_or_name=False,header_start_row=header_start_row,row_skip=row_skip,debug=False,logtime=logtime,add_file_columns='0',column_skip=column_skip)
+		header_standardized = header_format(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
+		join(path_temp=path_temp,header_standardized=header_standardized,path_destination=path_destination,filename=filename,logtime=logtime,debug=False)
+		delete_tempfile(path_temp,filename,logtime,debug=False)
+			
+	if '1' in config["CONFIG"]["save"]:
+		gcf.generate(
+			path_in=os.getcwd()
+			,path_out=config["CONFIG"]["path_out"].replace("custom",windows_username)
+			,name="config"
+			,name_new=config["FILE"]["name"]
+			,summary=config["CONFIG"]["summary"]
+		)
 
 	log_time(logtime,"[Time] Start Time",time_start)
 	log_time(logtime,"[Time] Total spended",datetime.datetime.now()-time_start)
