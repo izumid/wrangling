@@ -66,7 +66,8 @@ def is_num(value):
 #drop_numbered_col
 def col_drop(column_drop,column_drop_number,dataframe):
 	# Drop just listed numnered columns
-	if '1' in column_drop:
+	if column_drop:
+		print(column_drop)
 		for column_name in column_drop:
 			if column_name in dataframe.columns: 
 				dataframe.drop(columns=column_name, inplace=True)
@@ -160,11 +161,17 @@ def transform(
 							sheet.dropna(axis=0, how="all", inplace=True)
 							log_time(logtime,"[Time] remove empty row",datetime.datetime.now()-time_start)
 
+							sheet.reset_index(inplace=True)
+							sheet.rename(columns={"index": "excelindexrow"},inplace=True)
+							exc_idx = sheet.pop("excelindexrow")
+							sheet.insert(0,"excelindexrow",exc_idx)
+
 							if '1' in column_add_file_control:
-								sheet.insert(0,"filename",Path(filename).stem)
-								sheet.insert(1,"sheet",str(name))
+								sheet.insert(1,"filename",Path(filename).stem)
+								sheet.insert(2,"sheet",str(name))
 
 							time_start = datetime.datetime.now()
+	
 
 							if '1' in post_merge: path_absolute_destination = os.path.join(path_destination,f"{str(count)}_{name}.feather")
 							else: path_absolute_destination = os.path.join(path_destination,f"{name}.feather")
@@ -172,11 +179,15 @@ def transform(
 							if not os.path.exists(path_destination): os.makedirs(path_destination)
 
 							debug_code(debug,"09->Save file in",path_absolute_destination)
+							
 							sheet.to_feather(path_absolute_destination)
-
+							sheet = sheet.astype(str)
+							
 							log_time(logtime,"[Time] Generate file",datetime.datetime.now()-time_start)
 							debug_code(debug,"\n")
 							count+=1
+
+
 				debug_code(debug,"\n\n")
 	except:
 		lf.log_file(name="log_error",header="Multiple Sheet",datetime=datetime.datetime.today())
@@ -218,8 +229,9 @@ def header_format(path_temp,column_add_file_control,debug=False,logtime=False):
 		complete_header = [x for x in previous_header if x not in unique_columns] + unique_columns
 		
 		if '1' in column_add_file_control:
-			complete_header.insert(0,complete_header.pop(complete_header.index('filename')))
-			complete_header.insert(1,complete_header.pop(complete_header.index('sheet')))
+			complete_header.insert(0,complete_header.pop(complete_header.index("excelindexrow")))
+			complete_header.insert(1,complete_header.pop(complete_header.index("filename")))
+			complete_header.insert(2,complete_header.pop(complete_header.index("sheet")))
 			if "idx" in complete_header: complete_header.insert(0,complete_header.pop(complete_header.index('idx')))
 
 		log_time(logtime,"Extract/transform headers",datetime.datetime.now()-time_start)
@@ -232,22 +244,24 @@ def header_format(path_temp,column_add_file_control,debug=False,logtime=False):
 
 
 # MARK: Join Data
-def join(path_temp,header_standardized,path_destination,logtime,debug=False):
+def join(path_temp,header_standardized,path_destination,filename,logtime,debug=False):
 	time_start =  datetime.datetime.now()
 	data = []
-
-	for filename in sorted(os.listdir(path_temp)):
-		filename = os.path.join(path_temp,filename)
-		if os.path.isfile(filename):
-			debug_code(debug,"06->filename",filename)
-			df = pd.read_feather(filename)
+	
+	for temp_filename in sorted(os.listdir(path_temp)):
+		path_absolute = os.path.join(path_temp,temp_filename)
+		if os.path.isfile(path_absolute):
+			debug_code(debug,"06->filename",path_absolute)
+			df = pd.read_feather(path_absolute)
 			df = df.reindex(df.columns.union(header_standardized, sort=False), axis=1, fill_value=None)
 			df = df.reindex(header_standardized,axis=1)
 			df = df.dropna(axis=0, how="all")
 			data.append(df)
 
 	data = pd.concat(data)
-	data.to_feather(path_destination)
+
+	if not os.path.exists(path_destination): os.makedirs(path_destination)
+	data.to_feather(os.path.join(path_destination,filename))
 
 	log_time(logtime,"Get data",datetime.datetime.now()-time_start)
 
@@ -319,11 +333,10 @@ def main():
 		,row_stop_first_blank=row_stop_first_blank,row_drop_duplicate=row_drop_duplicate,drop_thresh_blank=drop_thresh_blank
 		,post_merge=post_merge,logtime=logtime,debug=debug
 	)
-
 	if '1' in post_merge:
 		#header_standardized = header_format(path_temp,filename,idx_or_name=False,header_start_row=header_start_row,row_skip=row_skip,debug=False,logtime=logtime,add_file_columns='0',column_skip=column_skip)
 		header_standardized = header_format(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
-		join(path_temp,header_standardized,os.path.join(path_destination,filename),logtime,debug=False)
+		join(path_temp=path_temp,header_standardized=header_standardized,path_destination=path_destination,filename=filename,logtime=logtime,debug=False)
 		delete_tempfile(path_temp,filename,logtime,debug=False)
 			
 	if '1' in config["CONFIG"]["save"]:
