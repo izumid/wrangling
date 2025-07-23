@@ -107,6 +107,7 @@ def transform(
 							#print(name,list(sheet.columns))
 							debug_code(debug,"02->Sheet name", name)
 							
+							# Those columns changes codes was dislocate to top, avoiding to deal with a large size of columns
 							if column_skip: sheet = sheet.iloc[:,column_skip:]
 							
 							if '1' in column_stop_first_blank:
@@ -120,20 +121,44 @@ def transform(
 							#debug_code(debug, "Datataframe informations", sheet.info())
 							debug_code(debug, "04->Datataframe shape", sheet.shape)
 							
-							#col_drop(column_drop=column_drop,column_drop_number=column_drop_number,dataframe=sheet)
-								
-							if column_drop:
-								sheet.drop(columns=[x for x in sheet.columns.to_list() if x in column_drop], inplace=True)
-		
-										
-							if '1' in column_drop_number:
-								sheet.drop(columns=[col for col in sheet.columns if str(col).isdigit()],inplace=True)
-
+							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+							
+							sheet.columns = sheet.columns.astype(str)
 							#sheet.columns = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in sheet.columns]	
 							header_current = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in sheet.columns]	
 
 							if not header_adjust_model is None: sheet.columns = header_transform(header_current, header_adjust_model)
+							else: sheet.columns = header_current
 
+							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+							# Old->  col_drop(column_drop=column_drop,column_drop_number=column_drop_number,dataframe=sheet)
+	
+							if column_drop:
+								exclude = []
+								for col_name in header_current:
+									for drop_col in column_drop:
+										#print(f"{col_name}({type(col_name)}),{drop_col}(type(drop_col)), equal: {col_name == drop_col}")
+										if  drop_col in col_name: exclude.append(col_name)
+
+									#ls = [c for c in header if c in column_drop]
+								print(exclude)
+								sheet.drop(columns=exclude, inplace=True)
+				
+							if '1' in column_drop_number:
+								sheet.drop(columns=[c for c in header_current if str(c).isdigit()],inplace=True)
+
+							#if '1' in column_drop_blank:
+								#sheet = sheet.dropna(axis=1, how="all", inplace=True)
+							
+							#if '1' in column_drop_unnmaed:
+								#sheet.drop(columns=[c for c in header if "unnamed" in c],inplace=True)
+							
+							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+							# -=-=-= Rows -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							if '1' in row_stop_first_blank:
 								idx_first_empty_row = sheet.isna().all(axis=1).idxmax()
 								sheet = sheet[:idx_first_empty_row:]
@@ -165,6 +190,8 @@ def transform(
 								time_start = datetime.datetime.now()
 								sheet.drop_duplicates(inplace=True,keep="last")
 								log_time(logtime,"[Time] Drop duplicates",datetime.datetime.now()-time_start)
+
+							# -=-=-= Rows -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 							time_start = datetime.datetime.now()
 							sheet.dropna(axis=0, how="all", inplace=True)
@@ -319,7 +346,9 @@ def main():
 	if column_skip > 2: column_skip = column_skip-1
 	column_not_null = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["not_null"].split(",")]
 	column_drop = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["drop"].split(",")]
-	column_drop =  [int(x) if str(x).isdigit() else x for x in column_drop]
+	#column_drop =  [int(x) if str(x).isdigit() else x for x in column_drop]
+	#print(column_drop)
+	print( [(type(x),x) for x in column_drop] )
 
 	column_drop_number = config["COLUMN"]["drop_number"]
 	column_stop_first_blank = config["COLUMN"]["stop_first_blank"]
