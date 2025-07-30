@@ -3,14 +3,11 @@ import os
 import pandas as pd
 from unidecode import unidecode
 import datetime
-#import csv
 import warnings
-#import time
 from pathlib import Path
 import md_logfile as lf
-import md_genconfig as gcf
+import md_genconfig as gc
 import numpy as np
-#from pyarrow import feather
 
 def log_time(on,message,time):
 	if on == 1: print(f"{message}: {time}")
@@ -66,19 +63,21 @@ def is_num(value):
 #drop_numbered_col
 def col_drop(column_drop,column_drop_number,dataframe):
 	# Drop just listed numnered columns
+	
 	if column_drop:
-		print(column_drop)
+		header = dataframe.columns.to_list()
 		for column_name in column_drop:
-			if column_name in dataframe.columns: 
+			if column_name in header: 
 				dataframe.drop(columns=column_name, inplace=True)
-
+				
 	# Drop all numbered columns
 	#if (column_drop == ' ' or column_drop[0] == ''):
 	if '1' in column_drop_number:
 		bool_array = [is_num(x) for x in dataframe.columns]
+		bool_array = [str(x).isdigit() for x in dataframe.columns]		
 		bool_array = np.array(bool_array)
 		dataframe = dataframe.loc[:, ~bool_array]
-	
+
 
 # MARK: Transform Data
 def transform(
@@ -102,9 +101,9 @@ def transform(
 				for name, sheet in excel_dict.items():
 					for value in name_sheet:
 						if value.lower() in name.lower():
-							#print(name,list(sheet.columns))
 							debug_code(debug,"02->Sheet name", name)
 							
+							# Those columns changes codes was dislocate to top, avoiding to deal with a large size of columns
 							if column_skip: sheet = sheet.iloc[:,column_skip:]
 							
 							if '1' in column_stop_first_blank:
@@ -118,13 +117,42 @@ def transform(
 							#debug_code(debug, "Datataframe informations", sheet.info())
 							debug_code(debug, "04->Datataframe shape", sheet.shape)
 							
-							col_drop(column_drop=column_drop,column_drop_number=column_drop_number,dataframe=sheet)
-
+							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+							
+							sheet.columns = sheet.columns.astype(str)
 							#sheet.columns = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in sheet.columns]	
 							header_current = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in sheet.columns]	
 
 							if not header_adjust_model is None: sheet.columns = header_transform(header_current, header_adjust_model)
+							else: sheet.columns = header_current
 
+							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+							# Old->  col_drop(column_drop=column_drop,column_drop_number=column_drop_number,dataframe=sheet)
+	
+							if column_drop:
+								exclude = []
+								for col_name in header_current:
+									for drop_col in column_drop:
+										if  drop_col in col_name: exclude.append(col_name)
+
+									#ls = [c for c in header if c in column_drop]
+								sheet.drop(columns=exclude, inplace=True)
+				
+							if '1' in column_drop_number:
+								sheet.drop(columns=[c for c in header_current if str(c).isdigit()],inplace=True)
+
+							#if '1' in column_drop_blank:
+								#sheet = sheet.dropna(axis=1, how="all", inplace=True)
+							
+							#if '1' in column_drop_unnmaed:
+								#sheet.drop(columns=[c for c in header if "unnamed" in c],inplace=True)
+							
+							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+							# -=-=-= Rows -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							if '1' in row_stop_first_blank:
 								idx_first_empty_row = sheet.isna().all(axis=1).idxmax()
 								sheet = sheet[:idx_first_empty_row:]
@@ -156,6 +184,8 @@ def transform(
 								time_start = datetime.datetime.now()
 								sheet.drop_duplicates(inplace=True,keep="last")
 								log_time(logtime,"[Time] Drop duplicates",datetime.datetime.now()-time_start)
+
+							# -=-=-= Rows -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 							time_start = datetime.datetime.now()
 							sheet.dropna(axis=0, how="all", inplace=True)
@@ -282,7 +312,9 @@ def main():
   
 	# Config File
 	config = configparser.RawConfigParser(allow_no_value=True)
-	config.read(os.path.join(os.getcwd(),"config/config.ini"), encoding="utf-8")
+	path_config = os.path.join(os.getcwd(),"config")
+	abs_path_config = os.path.join(path_config,"config.ini")
+	config.read(abs_path_config, encoding="utf-8")
 		
 	# To extract data
 	windows_username= os.getlogin()
@@ -310,6 +342,7 @@ def main():
 	if column_skip > 2: column_skip = column_skip-1
 	column_not_null = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["not_null"].split(",")]
 	column_drop = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["drop"].split(",")]
+
 	column_drop_number = config["COLUMN"]["drop_number"]
 	column_stop_first_blank = config["COLUMN"]["stop_first_blank"]
 	column_add_file_control = config["COLUMN"]["add_file_control"]
@@ -320,8 +353,10 @@ def main():
 
 	logtime = config["DEBUG"]["logtime"]
 	debug= config["DEBUG"]["on"]
+	export_config_name= config["CONFIG"]["name"]
 	time_start =  datetime.datetime.now()
 
+	
 	if '1' in post_merge: aux = path_temp
 	else: aux = path_destination
 
@@ -337,15 +372,17 @@ def main():
 		#header_standardized = header_format(path_temp,filename,idx_or_name=False,header_start_row=header_start_row,row_skip=row_skip,debug=False,logtime=logtime,add_file_columns='0',column_skip=column_skip)
 		header_standardized = header_format(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
 		join(path_temp=path_temp,header_standardized=header_standardized,path_destination=path_destination,filename=filename,logtime=logtime,debug=False)
-		delete_tempfile(path_temp,filename,logtime,debug=False)
+		#delete_tempfile(path_temp,filename,logtime,debug=False)
 			
-	if '1' in config["CONFIG"]["save"]:
-		gcf.generate(
-			path_in=os.getcwd()
-			,path_out=config["CONFIG"]["path_out"].replace("custom",windows_username)
-			,name="config"
-			,name_new=config["FILE"]["name"]
+	
+	if export_config_name != "" and export_config_name != " ":
+		gc.generate_config_file(
+			path_file_in=path_config
+			,path_file_out=config["CONFIG"]["path_out"].replace("custom",windows_username)
+			,name_config=os.path.basename(abs_path_config)
+			,name_new_config=export_config_name
 			,summary=config["CONFIG"]["summary"]
+			,commentary=config["CONFIG"]["commentary"]
 		)
 
 	log_time(logtime,"[Time] Start Time",time_start)
