@@ -103,6 +103,7 @@ def transform(
 						if value.lower() in name.lower():
 							debug_code(debug,"02->Sheet name", name)
 							
+							
 							# Those columns changes codes was dislocate to top, avoiding to deal with a large size of columns
 							if column_skip: sheet = sheet.iloc[:,column_skip:]
 							
@@ -127,12 +128,13 @@ def transform(
 							else: sheet.columns = header_current
 
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
+							
 							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 							# Old->  col_drop(column_drop=column_drop,column_drop_number=column_drop_number,dataframe=sheet)
-	
-							if column_drop:
+							#print(sheet.info())
+
+							if column_drop[0] != '':
 								exclude = []
 								for col_name in header_current:
 									for drop_col in column_drop:
@@ -140,7 +142,7 @@ def transform(
 
 									#ls = [c for c in header if c in column_drop]
 								sheet.drop(columns=exclude, inplace=True)
-				
+							
 							if '1' in column_drop_number:
 								sheet.drop(columns=[c for c in header_current if str(c).isdigit()],inplace=True)
 
@@ -210,8 +212,9 @@ def transform(
 
 							debug_code(debug,"09->Save file in",path_absolute_destination)
 							
+							
 							sheet.to_feather(path_absolute_destination)
-							sheet = sheet.astype(str)
+							#sheet = sheet.astype(str)
 							
 							log_time(logtime,"[Time] Generate file",datetime.datetime.now()-time_start)
 							debug_code(debug,"\n")
@@ -368,12 +371,13 @@ def main():
 		,row_stop_first_blank=row_stop_first_blank,row_drop_duplicate=row_drop_duplicate,drop_thresh_blank=drop_thresh_blank
 		,post_merge=post_merge,logtime=logtime,debug=debug
 	)
+
 	if '1' in post_merge:
 		#header_standardized = header_format(path_temp,filename,idx_or_name=False,header_start_row=header_start_row,row_skip=row_skip,debug=False,logtime=logtime,add_file_columns='0',column_skip=column_skip)
 		header_standardized = header_format(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
 		join(path_temp=path_temp,header_standardized=header_standardized,path_destination=path_destination,filename=filename,logtime=logtime,debug=False)
-		#delete_tempfile(path_temp,filename,logtime,debug=False)
-			
+		delete_tempfile(path_temp,filename,logtime,debug=False)
+		
 	
 	if export_config_name != "" and export_config_name != " ":
 		gc.generate_config_file(
@@ -384,7 +388,7 @@ def main():
 			,summary=config["CONFIG"]["summary"]
 			,commentary=config["CONFIG"]["commentary"]
 		)
-
+	
 	log_time(logtime,"[Time] Start Time",time_start)
 	log_time(logtime,"[Time] Total spended",datetime.datetime.now()-time_start)
 
