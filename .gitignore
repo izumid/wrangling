@@ -1,6 +1,7 @@
 # Ignore folders and its contents
 /.venv/
 /-v/
+/exe_file/
 
 # Ignore folders and its contents, any location
 **/__pycache__/
@@ -8,6 +9,9 @@
 # Ignore files from folder, kept it.
 *temp/*
 !temp/.gitkeep
+
+*img/*
+!img/.gitkeep
 
 #ignore specific files
 config/config.ini
