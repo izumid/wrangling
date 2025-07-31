@@ -10,7 +10,7 @@ CALL "%path_env%\activate"
 CALL "%path_env%\python" -m PyInstaller  ^
     --onefile  ^
     --icon="%~dp0..\img\icon.ico" ^
-    --name "etl" ^
+    --name "wrangling" ^
     --workpath "%output_folder%" ^
     --distpath "%output_folder%" ^
     --specpath "%output_folder%" ^
