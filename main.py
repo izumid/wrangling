@@ -83,7 +83,7 @@ def col_drop(column_drop,column_drop_number,dataframe):
 def transform(
 	path_root,path_destination,name_sheet
 	,header_start_row, header_adjust_model
-	,column_skip=False,column_lower=False,column_stop_first_blank=False,column_drop=False
+	,column_skip=False,column_lower=False,column_strip=False,column_stop_first_blank=False,column_drop=False
 	,column_drop_number=False,column_not_null=False,column_add_file_control=False
 	,row_stop_first_blank=False,row_drop_duplicate=False,drop_thresh_blank=False
 	,post_merge=False,logtime=False,debug=False
@@ -102,7 +102,6 @@ def transform(
 					for value in name_sheet:
 						if value.lower() in name.lower():
 							debug_code(debug,"02->Sheet name", name)
-							
 							
 							# Those columns changes codes was dislocate to top, avoiding to deal with a large size of columns
 							if column_skip: sheet = sheet.iloc[:,column_skip:]
@@ -203,7 +202,6 @@ def transform(
 								sheet.insert(2,"sheet",str(name))
 
 							time_start = datetime.datetime.now()
-	
 
 							if '1' in post_merge: path_absolute_destination = os.path.join(path_destination,f"{str(count)}_{name}.feather")
 							else: path_absolute_destination = os.path.join(path_destination,f"{name}.feather")
@@ -214,7 +212,10 @@ def transform(
 							
 							if '1' in column_lower:
 								for col in sheet.columns:
-									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.lower()
+									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.lower().str.strip()
+							if '1' in column_strip:
+								for col in sheet.columns:
+									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.strip()
 								
 							sheet.to_feather(path_absolute_destination)
 							#sheet = sheet.astype(str)
@@ -346,7 +347,8 @@ def main():
 
 	column_skip = int(config["COLUMN"]["skip"])
 	if column_skip > 2: column_skip = column_skip-1
-	column_lower = (config["COLUMN"]["lower"])
+	column_lower = config["COLUMN"]["lower"]
+	column_strip = config["COLUMN"]["strip"]
 	column_not_null = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["not_null"].split(",")]
 	column_drop = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["drop"].split(",")]
 
@@ -370,7 +372,7 @@ def main():
 	transform(
 		path_root=path_root,path_destination=aux,name_sheet=name_sheet
 		,header_start_row=header_start_row, header_adjust_model=header_adjust_model
-		,column_skip=column_skip,column_lower=column_lower,column_stop_first_blank=column_stop_first_blank,column_drop=column_drop
+		,column_skip=column_skip,column_lower=column_lower,column_strip=column_strip,column_stop_first_blank=column_stop_first_blank,column_drop=column_drop
 		,column_drop_number=column_drop_number,column_not_null=column_not_null,column_add_file_control=column_add_file_control
 		,row_stop_first_blank=row_stop_first_blank,row_drop_duplicate=row_drop_duplicate,drop_thresh_blank=drop_thresh_blank
 		,post_merge=post_merge,logtime=logtime,debug=debug
