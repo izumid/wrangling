@@ -114,7 +114,10 @@ def transform(
 								sheet = sheet.iloc[:, :idx]
 								log_time(logtime,"[Time] Get dataset until first blank column",datetime.datetime.now()-time_start)
 							
-							#debug_code(debug, "Datataframe informations", sheet.info())
+							# Same idea to avoid large number of rows, unnecessary transform in code below
+							if '1' in row_stop_first_blank:
+								idx_first_empty_row = sheet.isna().all(axis=1).idxmax()
+								sheet = sheet[:idx_first_empty_row:]
 							debug_code(debug, "04->Datataframe shape", sheet.shape)
 							
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -154,9 +157,6 @@ def transform(
 							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 							# -=-=-= Rows -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-							if '1' in row_stop_first_blank:
-								idx_first_empty_row = sheet.isna().all(axis=1).idxmax()
-								sheet = sheet[:idx_first_empty_row:]
 							
 							if not(len(column_not_null) == 1 and column_not_null[0] ==''):
 								if '1' in row_stop_first_blank:
@@ -275,7 +275,6 @@ def header_format(path_temp,column_add_file_control,debug=False,logtime=False):
 		debug_code(debug,"05->header list",complete_header)
 	
 		return(complete_header)
-	
 	except:
 		lf.log_file(name="log_error",header="Single Sheet",datetime=datetime.datetime.today())
 
@@ -318,10 +317,13 @@ def main():
 	warnings.filterwarnings('ignore') 
   
 	# Config File
-	config = configparser.RawConfigParser(allow_no_value=True)
-	path_config = os.path.join(os.getcwd(),"config")
-	abs_path_config = os.path.join(path_config,"config.ini")
-	config.read(abs_path_config, encoding="utf-8")
+	try:
+		config = configparser.RawConfigParser(allow_no_value=True)
+		path_config = os.path.join(os.getcwd(),"config")
+		abs_path_config = os.path.join(path_config,"config.ini")
+		config.read(abs_path_config, encoding="utf-8")
+	except:
+		lf.log_file(name="log_error",header="Config File",datetime=datetime.datetime.today())
 		
 	# To extract data
 	windows_username= os.getlogin()
