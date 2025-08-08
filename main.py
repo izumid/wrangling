@@ -82,7 +82,7 @@ def col_drop(column_drop,column_drop_number,dataframe):
 # MARK: Transform Data
 def transform(
 	path_root,path_destination,name_sheet
-	,header_start_row, header_adjust_model
+	,header_start_row,header_adjust_model,original_datatype=False
 	,column_skip=False,column_lower=False,column_strip=False,column_stop_first_blank=False,column_drop=False
 	,column_drop_number=False,column_not_null=False,column_add_file_control=False
 	,row_stop_first_blank=False,row_drop_duplicate=False,drop_thresh_blank=False
@@ -95,7 +95,11 @@ def transform(
 			if os.path.isfile(filename):
 				debug_code(debug,"01->Filename",filename)
 				time_start = datetime.datetime.now()
-				excel_dict = pd.read_excel(io=filename,header=header_start_row,sheet_name=None,na_values=["","-"],dtype=str) #changed
+				
+				if '1' in original_datatype:
+					excel_dict = pd.read_excel(io=filename,header=header_start_row,sheet_name=None,na_values=["","-"])
+				else:  excel_dict = pd.read_excel(io=filename,header=header_start_row,sheet_name=None,na_values=["","-"],dtype=str)
+
 				log_time(logtime,"[Time] Read file",datetime.datetime.now()-time_start)
 				
 				for name, sheet in excel_dict.items():
@@ -203,6 +207,19 @@ def transform(
 
 							time_start = datetime.datetime.now()
 
+							if '1' in column_lower:
+								for col in sheet.columns:
+									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.lower().str.strip()
+
+							if '1' in column_strip:
+								for col in sheet.columns:
+									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.strip()
+
+							if  not '1' in original_datatype:
+								for col in sheet.columns:
+									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.replace("None",'')
+								
+
 							if '1' in post_merge: path_absolute_destination = os.path.join(path_destination,f"{str(count)}_{name}.feather")
 							else: path_absolute_destination = os.path.join(path_destination,f"{name}.feather")
 							
@@ -210,13 +227,14 @@ def transform(
 
 							debug_code(debug,"09->Save file in",path_absolute_destination)
 							
-							if '1' in column_lower:
-								for col in sheet.columns:
-									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.lower().str.strip()
-							if '1' in column_strip:
-								for col in sheet.columns:
-									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.strip()
-								
+							print(sheet.info(),sheet.head())
+							#sheet.replace("None", pd.NA, inplace=True)
+							#sheet = sheet.where(pd.notnull(sheet), None)
+							
+							for index, row in sheet.head().iterrows():
+								print ([(r,type(r)) for r in row], "\r\n")
+
+
 							sheet.to_feather(path_absolute_destination)
 							#sheet = sheet.astype(str)
 							
@@ -245,10 +263,7 @@ def header_format(path_temp,column_add_file_control,debug=False,logtime=False):
 				#if Path(filename).suffix == ".csv": df = pd.read_csv(filename, sep=";", header=header_start_row, dtype=str,encoding="utf-8-sig")
 				#else: df = pd.read_excel(io=filename,skiprows=header_start_row,sheet_name=idx_or_name,na_values=["","-"],dtype=str,nrows=row_skip,engine="openpyxl")
 
-				#if column_skip: df = df.iloc[column_skip:]
 				current_header = pd.read_feather(abs_path_file).columns.to_list()
-				#current_header = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in df.columns]
-
 				debug_code(debug,"01->abs_path_file", abs_path_file)
 
 				if len(unique_columns) > 0:
@@ -292,6 +307,7 @@ def join(path_temp,header_standardized,path_destination,filename,logtime,debug=F
 			df = df.reindex(df.columns.union(header_standardized, sort=False), axis=1, fill_value=None)
 			df = df.reindex(header_standardized,axis=1)
 			df = df.dropna(axis=0, how="all")
+			
 			data.append(df)
 
 	data = pd.concat(data)
@@ -316,7 +332,6 @@ def main():
 	pd.set_option("display.max_columns", None)
 	warnings.filterwarnings('ignore') 
   
-	# Config File
 	try:
 		config = configparser.RawConfigParser(allow_no_value=True)
 		path_config = os.path.join(os.getcwd(),"config")
@@ -338,6 +353,7 @@ def main():
 
 	filename = config["FILE"]["name"] + ".feather"
 	name_sheet = config["FILE"]["name_sheet"].lower().split(",")
+	original_datatype = config["FILE"]["original_datatype"]
 	
 	header_start_row = int(config["HEADER"]["start_row"])
 	header_adjust_model = config["HEADER"]["adjust_model"]
@@ -373,7 +389,7 @@ def main():
 
 	transform(
 		path_root=path_root,path_destination=aux,name_sheet=name_sheet
-		,header_start_row=header_start_row, header_adjust_model=header_adjust_model
+		,header_start_row=header_start_row,header_adjust_model=header_adjust_model,original_datatype=original_datatype
 		,column_skip=column_skip,column_lower=column_lower,column_strip=column_strip,column_stop_first_blank=column_stop_first_blank,column_drop=column_drop
 		,column_drop_number=column_drop_number,column_not_null=column_not_null,column_add_file_control=column_add_file_control
 		,row_stop_first_blank=row_stop_first_blank,row_drop_duplicate=row_drop_duplicate,drop_thresh_blank=drop_thresh_blank
@@ -381,7 +397,6 @@ def main():
 	)
 
 	if '1' in post_merge:
-		#header_standardized = header_format(path_temp,filename,idx_or_name=False,header_start_row=header_start_row,row_skip=row_skip,debug=False,logtime=logtime,add_file_columns='0',column_skip=column_skip)
 		header_standardized = header_format(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
 		join(path_temp=path_temp,header_standardized=header_standardized,path_destination=path_destination,filename=filename,logtime=logtime,debug=False)
 		delete_tempfile(path_temp,filename,logtime,debug=False)
