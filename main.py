@@ -8,6 +8,7 @@ from pathlib import Path
 import md_logfile as lf
 import md_genconfig as gc
 import numpy as np
+import re
 
 def log_time(on,message,time):
 	if on == 1: print(f"{message}: {time}")
@@ -21,6 +22,16 @@ def idx_name(var):
 	try: return int(var)
 	except: return  var
 
+def column_name_adjust(header):
+	column = [
+		re.sub(
+			r'_+', '_',  # collapse multiple underscores into one
+			''.join(letter if letter.isalnum() else "_"  for letter in unidecode(str(elem)))
+		).strip('_').lower()  # remove leading/trailing underscores
+		for elem in header
+	]
+
+	return column
 
 def check_element(list_i,list_j,list_unique):
 	for elem in list_i:
@@ -60,6 +71,8 @@ def is_num(value):
 
 	return x
 
+
+
 #drop_numbered_col
 def col_drop(column_drop,column_drop_number,dataframe):
 	# Drop just listed numnered columns
@@ -84,7 +97,7 @@ def transform(
 	path_root,path_destination,name_sheet
 	,header_start_row,header_adjust_model,original_datatype=False
 	,column_skip=False,column_lower=False,column_strip=False,column_stop_first_blank=False,column_drop=False
-	,column_drop_number=False,column_not_null=False,column_add_file_control=False
+	,column_drop_number=False,column_not_null=False,column_add_file_control=False,column_add=False
 	,row_stop_first_blank=False,row_drop_duplicate=False,drop_thresh_blank=False
 	,post_merge=False,logtime=False,debug=False
 ):
@@ -127,8 +140,7 @@ def transform(
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							
 							sheet.columns = sheet.columns.astype(str)
-							#sheet.columns = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in sheet.columns]	
-							header_current = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in sheet.columns]	
+							header_current =  column_name_adjust(sheet.columns)
 
 							if not header_adjust_model is None: sheet.columns = header_transform(header_current, header_adjust_model)
 							else: sheet.columns = header_current
@@ -136,9 +148,6 @@ def transform(
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							
 							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
-							# Old->  col_drop(column_drop=column_drop,column_drop_number=column_drop_number,dataframe=sheet)
-							#print(sheet.info())
 
 							if column_drop[0] != '':
 								exclude = []
@@ -152,22 +161,16 @@ def transform(
 							if '1' in column_drop_number:
 								sheet.drop(columns=[c for c in header_current if str(c).isdigit()],inplace=True)
 
-							#if '1' in column_drop_blank:
-								#sheet = sheet.dropna(axis=1, how="all", inplace=True)
-							
-							#if '1' in column_drop_unnmaed:
-								#sheet.drop(columns=[c for c in header if "unnamed" in c],inplace=True)
-							
 							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 							# -=-=-= Rows -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							
 							if not(len(column_not_null) == 1 and column_not_null[0] ==''):
+								
 								if '1' in row_stop_first_blank:
 									idx_first_empty_row = sheet[column_not_null].isna().all(axis=1).idxmax()
 									sheet = sheet[:idx_first_empty_row:]
 								
-								#sheet.columns = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in sheet.columns]	
 								time_start = datetime.datetime.now()
 								debug_code(debug,"05->Columns that must be filled",column_not_null)
 								query_filled = "".join("& "+elem+(".notnull() ") if x > 0 else elem+(".notnull() ") for x, elem in enumerate(column_not_null))
@@ -197,12 +200,12 @@ def transform(
 							log_time(logtime,"[Time] remove empty row",datetime.datetime.now()-time_start)
 
 							sheet.reset_index(inplace=True)
-							sheet.rename(columns={"index": "excelindexrow"},inplace=True)
-							exc_idx = sheet.pop("excelindexrow")
-							sheet.insert(0,"excelindexrow",exc_idx)
+							sheet.rename(columns={"index": "excel_row"},inplace=True)
+							exc_idx = sheet.pop("excel_row")
+							sheet.insert(0,"excel_row",exc_idx)
 
 							if '1' in column_add_file_control:
-								sheet.insert(1,"filename",Path(filename).stem)
+								sheet.insert(1,"file_name",Path(filename).stem)
 								sheet.insert(2,"sheet",str(name))
 
 							time_start = datetime.datetime.now()
@@ -225,32 +228,24 @@ def transform(
 							
 							if not os.path.exists(path_destination): os.makedirs(path_destination)
 
-							debug_code(debug,"09->Save file in",path_absolute_destination)
-							
-							print(sheet.info(),sheet.head())
-							#sheet.replace("None", pd.NA, inplace=True)
-							#sheet = sheet.where(pd.notnull(sheet), None)
-							
-							for index, row in sheet.head().iterrows():
-								print ([(r,type(r)) for r in row], "\r\n")
-
+							sheet = sheet.assign(**column_add)
+							debug_code(debug,f"{sheet.info()}\r\n{sheet.head()}")
 
 							sheet.to_feather(path_absolute_destination)
-							#sheet = sheet.astype(str)
+
+							debug_code(debug,"09->Saved file in",path_absolute_destination)
 							
 							log_time(logtime,"[Time] Generate file",datetime.datetime.now()-time_start)
 							debug_code(debug,"\n")
 							count+=1
-
 
 				debug_code(debug,"\n\n")
 	except:
 		lf.log_file(name="log_error",header="Multiple Sheet",datetime=datetime.datetime.today())
 	
 
-# MARK: Format Header
-#def header_format(path_temp,idx_or_name=False,header_start_row=False,row_skip=False,debug=False,logtime=False,add_file_columns=False,column_skip=False):
-def header_format(path_temp,column_add_file_control,debug=False,logtime=False):
+# MARK: Join Headers
+def join_header(path_temp,column_add_file_control,debug=False,logtime=False):
 	try:
 		time_start =  datetime.datetime.now()
 		previous_header = []
@@ -260,8 +255,6 @@ def header_format(path_temp,column_add_file_control,debug=False,logtime=False):
 		for filename in sorted(os.listdir(path_temp)):
 			abs_path_file = os.path.join(path_temp,filename)
 			if os.path.isfile(abs_path_file):
-				#if Path(filename).suffix == ".csv": df = pd.read_csv(filename, sep=";", header=header_start_row, dtype=str,encoding="utf-8-sig")
-				#else: df = pd.read_excel(io=filename,skiprows=header_start_row,sheet_name=idx_or_name,na_values=["","-"],dtype=str,nrows=row_skip,engine="openpyxl")
 
 				current_header = pd.read_feather(abs_path_file).columns.to_list()
 				debug_code(debug,"01->abs_path_file", abs_path_file)
@@ -281,8 +274,8 @@ def header_format(path_temp,column_add_file_control,debug=False,logtime=False):
 		complete_header = [x for x in previous_header if x not in unique_columns] + unique_columns
 		
 		if '1' in column_add_file_control:
-			complete_header.insert(0,complete_header.pop(complete_header.index("excelindexrow")))
-			complete_header.insert(1,complete_header.pop(complete_header.index("filename")))
+			complete_header.insert(0,complete_header.pop(complete_header.index("excel_row")))
+			complete_header.insert(1,complete_header.pop(complete_header.index("file_name")))
 			complete_header.insert(2,complete_header.pop(complete_header.index("sheet")))
 			if "idx" in complete_header: complete_header.insert(0,complete_header.pop(complete_header.index('idx')))
 
@@ -295,7 +288,7 @@ def header_format(path_temp,column_add_file_control,debug=False,logtime=False):
 
 
 # MARK: Join Data
-def join(path_temp,header_standardized,path_destination,filename,logtime,debug=False):
+def join_dataset(path_temp,header_standardized,path_destination,filename,column_reorder,logtime,debug=False):
 	time_start =  datetime.datetime.now()
 	data = []
 	
@@ -307,7 +300,7 @@ def join(path_temp,header_standardized,path_destination,filename,logtime,debug=F
 			df = df.reindex(df.columns.union(header_standardized, sort=False), axis=1, fill_value=None)
 			df = df.reindex(header_standardized,axis=1)
 			df = df.dropna(axis=0, how="all")
-			
+			df = df[column_reorder]
 			data.append(df)
 
 	data = pd.concat(data)
@@ -367,12 +360,14 @@ def main():
 	if column_skip > 2: column_skip = column_skip-1
 	column_lower = config["COLUMN"]["lower"]
 	column_strip = config["COLUMN"]["strip"]
-	column_not_null = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["not_null"].split(",")]
-	column_drop = [(''.join(letter for letter in unidecode(str(elem)) if letter.isalnum())).lower() for elem in config["COLUMN"]["drop"].split(",")]
+	column_not_null = column_name_adjust(config["COLUMN"]["not_null"].split(","))
+	column_drop = column_name_adjust(config["COLUMN"]["drop"].split(","))
 
 	column_drop_number = config["COLUMN"]["drop_number"]
 	column_stop_first_blank = config["COLUMN"]["stop_first_blank"]
 	column_add_file_control = config["COLUMN"]["add_file_control"]
+	column_reorder = config["COLUMN"]["reorder"].split(',')
+	column_add =  dict(config["ADD_COLUMN"])
 
 	row_stop_first_blank = config["ROW"]["stop_first_blank"]
 	row_drop_duplicate = config["ROW"]["drop_duplicate"]
@@ -383,23 +378,25 @@ def main():
 	export_config_name= config["CONFIG"]["name"]
 	time_start =  datetime.datetime.now()
 
-	
 	if '1' in post_merge: aux = path_temp
 	else: aux = path_destination
+	
+	delete_tempfile(path_temp,filename,logtime,debug=False)
 
 	transform(
 		path_root=path_root,path_destination=aux,name_sheet=name_sheet
 		,header_start_row=header_start_row,header_adjust_model=header_adjust_model,original_datatype=original_datatype
 		,column_skip=column_skip,column_lower=column_lower,column_strip=column_strip,column_stop_first_blank=column_stop_first_blank,column_drop=column_drop
-		,column_drop_number=column_drop_number,column_not_null=column_not_null,column_add_file_control=column_add_file_control
+		,column_drop_number=column_drop_number,column_not_null=column_not_null,column_add_file_control=column_add_file_control,column_add=column_add
 		,row_stop_first_blank=row_stop_first_blank,row_drop_duplicate=row_drop_duplicate,drop_thresh_blank=drop_thresh_blank
 		,post_merge=post_merge,logtime=logtime,debug=debug
 	)
 
 	if '1' in post_merge:
-		header_standardized = header_format(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
-		join(path_temp=path_temp,header_standardized=header_standardized,path_destination=path_destination,filename=filename,logtime=logtime,debug=False)
-		delete_tempfile(path_temp,filename,logtime,debug=False)
+		header_standardized = join_header(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
+		join_dataset(path_temp=path_temp,header_standardized=header_standardized,path_destination=path_destination,filename=filename,column_reorder=column_reorder,logtime=logtime,debug=False)
+	
+	delete_tempfile(path_temp,filename,logtime,debug=False)
 		
 	
 	if export_config_name != "" and export_config_name != " ":
