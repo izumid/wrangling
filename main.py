@@ -62,16 +62,20 @@ def header_transform(header_current, adjust_model):
 	return(header_current)
 
 
-def is_num(value):
+def is_num_cast(value,decimal=True,boolean=True):
 	try:
-		float(value)
-		x = True
+		if decimal: y = float(value)
+		else:  y = int(value)
+		
+		if boolean: x = True
+		else: x = y
+
 	except ValueError:
 		x = False
+		if boolean: x = False
+		else: x = 0
 
 	return x
-
-
 
 #drop_numbered_col
 def col_drop(column_drop,column_drop_number,dataframe):
@@ -86,7 +90,7 @@ def col_drop(column_drop,column_drop_number,dataframe):
 	# Drop all numbered columns
 	#if (column_drop == ' ' or column_drop[0] == ''):
 	if '1' in column_drop_number:
-		bool_array = [is_num(x) for x in dataframe.columns]
+		bool_array = [is_num_cast(x) for x in dataframe.columns]
 		bool_array = [str(x).isdigit() for x in dataframe.columns]		
 		bool_array = np.array(bool_array)
 		dataframe = dataframe.loc[:, ~bool_array]
@@ -96,8 +100,9 @@ def col_drop(column_drop,column_drop_number,dataframe):
 def transform(
 	path_root,path_destination,name_sheet
 	,header_start_row,header_adjust_model,original_datatype=False
-	,column_skip=False,column_lower=False,column_strip=False,column_stop_first_blank=False,column_drop=False
-	,column_drop_number=False,column_not_null=False,column_add_file_control=False,column_add=False
+	,column_skip=False,column_lower=False,column_strip=False,column_stop_first_blank=False
+	,column_drop=False,column_drop_number=False,column_not_null=False,column_add_file_control=False
+	,column_add=False,column_limit=False,column_limit_characters=False
 	,row_stop_first_blank=False,row_drop_duplicate=False,drop_thresh_blank=False
 	,post_merge=False,logtime=False,debug=False
 ):
@@ -179,7 +184,7 @@ def transform(
 								log_time(logtime,"07->[Time] Filter dataset",datetime.datetime.now()-time_start)
 							
 					
-							if drop_thresh_blank != '':
+							if drop_thresh_blank > 0:
 								drop_thresh_blank = int(drop_thresh_blank)
 								if drop_thresh_blank >= 1: drop_thresh_blank = drop_thresh_blank-1
 
@@ -187,6 +192,7 @@ def transform(
 								time_start = datetime.datetime.now()
 								sheet.dropna(thresh=drop_thresh_blank-1, inplace=True)
 								log_time(logtime,"[Time] Remove empty row",datetime.datetime.now()-time_start)
+
 
 							if '1' in row_drop_duplicate:
 								time_start = datetime.datetime.now()
@@ -203,6 +209,7 @@ def transform(
 							sheet.rename(columns={"index": "excel_row"},inplace=True)
 							exc_idx = sheet.pop("excel_row")
 							sheet.insert(0,"excel_row",exc_idx)
+							
 
 							if '1' in column_add_file_control:
 								sheet.insert(1,"file_name",Path(filename).stem)
@@ -221,7 +228,10 @@ def transform(
 							if  not '1' in original_datatype:
 								for col in sheet.columns:
 									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.replace("None",'')
-								
+
+							if len(column_limit) > 0:
+								for col in column_limit:
+									if col in sheet.columns: sheet[col] = sheet[col].apply(lambda x: x[:column_limit_characters] if isinstance(x, str) else x)
 
 							if '1' in post_merge: path_absolute_destination = os.path.join(path_destination,f"{str(count)}_{name}.feather")
 							else: path_absolute_destination = os.path.join(path_destination,f"{name}.feather")
@@ -231,6 +241,7 @@ def transform(
 							sheet = sheet.assign(**column_add)
 							debug_code(debug,f"{sheet.info()}\r\n{sheet.head()}")
 
+							
 							sheet.to_feather(path_absolute_destination)
 
 							debug_code(debug,"09->Saved file in",path_absolute_destination)
@@ -300,7 +311,7 @@ def join_dataset(path_temp,header_standardized,path_destination,filename,column_
 			df = df.reindex(df.columns.union(header_standardized, sort=False), axis=1, fill_value=None)
 			df = df.reindex(header_standardized,axis=1)
 			df = df.dropna(axis=0, how="all")
-			df = df[column_reorder]
+			if len(column_reorder) > 1: df = df[column_reorder]
 			data.append(df)
 
 	data = pd.concat(data)
@@ -362,16 +373,18 @@ def main():
 	column_strip = config["COLUMN"]["strip"]
 	column_not_null = column_name_adjust(config["COLUMN"]["not_null"].split(","))
 	column_drop = column_name_adjust(config["COLUMN"]["drop"].split(","))
-
 	column_drop_number = config["COLUMN"]["drop_number"]
+
 	column_stop_first_blank = config["COLUMN"]["stop_first_blank"]
 	column_add_file_control = config["COLUMN"]["add_file_control"]
-	column_reorder = config["COLUMN"]["reorder"].split(',')
 	column_add =  dict(config["ADD_COLUMN"])
+	column_reorder = config["COLUMN"]["reorder"].split(',')
+	column_limit= config["COLUMN"]["limit"].split(',')
+	column_limit_characters = is_num_cast(config["COLUMN"]["limit_characters"],decimal=False,boolean=False)
 
 	row_stop_first_blank = config["ROW"]["stop_first_blank"]
-	row_drop_duplicate = config["ROW"]["drop_duplicate"]
-	drop_thresh_blank = config["ROW"]["drop_thresh_blank"]
+	row_drop_duplicate = config["ROW"]["drop_duplicate"]	
+	drop_thresh_blank = is_num_cast(config["ROW"]["drop_thresh_blank"],decimal=False,boolean=False)
 
 	logtime = config["DEBUG"]["logtime"]
 	debug= config["DEBUG"]["on"]
@@ -381,13 +394,14 @@ def main():
 	if '1' in post_merge: aux = path_temp
 	else: aux = path_destination
 	
-	delete_tempfile(path_temp,filename,logtime,debug=False)
+	#delete_tempfile(path_temp,filename,logtime,debug=False)
 
 	transform(
 		path_root=path_root,path_destination=aux,name_sheet=name_sheet
 		,header_start_row=header_start_row,header_adjust_model=header_adjust_model,original_datatype=original_datatype
-		,column_skip=column_skip,column_lower=column_lower,column_strip=column_strip,column_stop_first_blank=column_stop_first_blank,column_drop=column_drop
-		,column_drop_number=column_drop_number,column_not_null=column_not_null,column_add_file_control=column_add_file_control,column_add=column_add
+		,column_skip=column_skip,column_lower=column_lower,column_strip=column_strip,column_stop_first_blank=column_stop_first_blank
+		,column_drop=column_drop,column_drop_number=column_drop_number,column_not_null=column_not_null,column_add_file_control=column_add_file_control
+		,column_add=column_add,column_limit=column_limit,column_limit_characters=column_limit_characters
 		,row_stop_first_blank=row_stop_first_blank,row_drop_duplicate=row_drop_duplicate,drop_thresh_blank=drop_thresh_blank
 		,post_merge=post_merge,logtime=logtime,debug=debug
 	)
