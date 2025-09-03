@@ -102,7 +102,7 @@ def transform(
 	,header_start_row,header_adjust_model,original_datatype=False
 	,column_skip=False,column_lower=False,column_strip=False,column_stop_first_blank=False
 	,column_drop=False,column_drop_number=False,column_not_null=False,column_add_file_control=False
-	,column_add=False,column_limit=False,column_limit_characters=False
+	,column_add=False,column_add_sheet_value=False,column_add_sheet_value_name=False,column_limit=False,column_limit_characters=False
 	,row_stop_first_blank=False,row_drop_duplicate=False,drop_thresh_blank=False
 	,post_merge=False,logtime=False,debug=False
 ):
@@ -193,24 +193,12 @@ def transform(
 								sheet.dropna(thresh=drop_thresh_blank-1, inplace=True)
 								log_time(logtime,"[Time] Remove empty row",datetime.datetime.now()-time_start)
 
-
-							if '1' in row_drop_duplicate:
-								time_start = datetime.datetime.now()
-								sheet.drop_duplicates(inplace=True,keep="last")
-								log_time(logtime,"[Time] Drop duplicates",datetime.datetime.now()-time_start)
-
 							# -=-=-= Rows -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
+							
 							time_start = datetime.datetime.now()
 							sheet.dropna(axis=0, how="all", inplace=True)
 							log_time(logtime,"[Time] remove empty row",datetime.datetime.now()-time_start)
-
-							sheet.reset_index(inplace=True)
-							sheet.rename(columns={"index": "excel_row"},inplace=True)
-							exc_idx = sheet.pop("excel_row")
-							sheet.insert(0,"excel_row",exc_idx)
-							
-
+						
 							if '1' in column_add_file_control:
 								sheet.insert(1,"file_name",Path(filename).stem)
 								sheet.insert(2,"sheet",str(name))
@@ -233,12 +221,33 @@ def transform(
 								for col in column_limit:
 									if col in sheet.columns: sheet[col] = sheet[col].apply(lambda x: x[:column_limit_characters] if isinstance(x, str) else x)
 
+							if '1' in row_drop_duplicate:
+								time_start = datetime.datetime.now()
+								sheet.drop_duplicates(inplace=True,keep="last")
+								log_time(logtime,"[Time] Drop duplicates",datetime.datetime.now()-time_start)
+							
+							sheet.reset_index(inplace=True)
+							sheet.rename(columns={"index": "excel_row"},inplace=True)
+							exc_idx = sheet.pop("excel_row")
+							sheet.insert(0,"excel_row",exc_idx)
+
+
 							if '1' in post_merge: path_absolute_destination = os.path.join(path_destination,f"{str(count)}_{name}.feather")
 							else: path_absolute_destination = os.path.join(path_destination,f"{name}.feather")
 							
 							if not os.path.exists(path_destination): os.makedirs(path_destination)
 
+							print(sheet.columns.to_list())
 							sheet = sheet.assign(**column_add)
+							print("AAAAAAAAAAAAA",column_add)
+							print(sheet.columns.to_list())
+							
+							if column_add_sheet_value != '':
+								for key in column_add_sheet_value.keys():
+									print(key,name.lower().replace(' ','_'))
+									if key in name.lower().replace(' ','_'):
+										sheet[column_add_sheet_value_name] = column_add_sheet_value[key]
+
 							debug_code(debug,f"{sheet.info()}\r\n{sheet.head()}")
 
 							
@@ -303,24 +312,26 @@ def join_dataset(path_temp,header_standardized,path_destination,filename,column_
 	time_start =  datetime.datetime.now()
 	data = []
 	
-	for temp_filename in sorted(os.listdir(path_temp)):
-		path_absolute = os.path.join(path_temp,temp_filename)
-		if os.path.isfile(path_absolute):
-			debug_code(debug,"06->filename",path_absolute)
-			df = pd.read_feather(path_absolute)
-			df = df.reindex(df.columns.union(header_standardized, sort=False), axis=1, fill_value=None)
-			df = df.reindex(header_standardized,axis=1)
-			df = df.dropna(axis=0, how="all")
-			if len(column_reorder) > 1: df = df[column_reorder]
-			data.append(df)
+	try: 
+		for temp_filename in sorted(os.listdir(path_temp)):
+			path_absolute = os.path.join(path_temp,temp_filename)
+			if os.path.isfile(path_absolute):
+				debug_code(debug,"06->filename",path_absolute)
+				df = pd.read_feather(path_absolute)
+				df = df.reindex(df.columns.union(header_standardized, sort=False), axis=1, fill_value=None)
+				df = df.reindex(header_standardized,axis=1)
+				df = df.dropna(axis=0, how="all")
+				if len(column_reorder) > 1: df = df[column_reorder]
+				data.append(df)
 
-	data = pd.concat(data)
+		data = pd.concat(data)
 
-	if not os.path.exists(path_destination): os.makedirs(path_destination)
-	data.to_feather(os.path.join(path_destination,filename))
+		if not os.path.exists(path_destination): os.makedirs(path_destination)
+		data.to_feather(os.path.join(path_destination,filename))
 
-	log_time(logtime,"Get data",datetime.datetime.now()-time_start)
-
+		log_time(logtime,"Get data",datetime.datetime.now()-time_start)
+	except:
+		lf.log_file(name="log_error",header="Config File",datetime=datetime.datetime.today())
 
 # MARK: Delete temple files
 def delete_tempfile(path_temp,filename,logtime,debug=False):
@@ -339,7 +350,8 @@ def main():
 	try:
 		config = configparser.RawConfigParser(allow_no_value=True)
 		path_config = os.path.join(os.getcwd(),"config")
-		abs_path_config = os.path.join(path_config,"config.ini")
+		#abs_path_config = os.path.join(path_config,"config.ini")
+		abs_path_config = os.path.join(path_config,"config_test.ini")
 		config.read(abs_path_config, encoding="utf-8")
 	except:
 		lf.log_file(name="log_error",header="Config File",datetime=datetime.datetime.today())
@@ -362,6 +374,7 @@ def main():
 	header_start_row = int(config["HEADER"]["start_row"])
 	header_adjust_model = config["HEADER"]["adjust_model"]
 	
+	#values of drop is cansitive? And special characters?
 	if header_adjust_model != [""]:
 		v = [x.lower().split(',') for x in header_adjust_model.split(';')]
 		k = [x.pop(0) for x in v]
@@ -378,6 +391,16 @@ def main():
 	column_stop_first_blank = config["COLUMN"]["stop_first_blank"]
 	column_add_file_control = config["COLUMN"]["add_file_control"]
 	column_add =  dict(config["ADD_COLUMN"])
+	
+	for k,v in column_add.items():
+		if ',' in v: key_pop = k
+
+	moviment = column_add.pop(key_pop)
+	aux = [value.split(',') for value in moviment.split(";")]
+	column_add_sheet_value = dict([(sub_array[0].lower().replace(' ','_'), sub_array[1].replace(' ','')) for sub_array in aux])
+	column_add_sheet_value_name = k
+	
+
 	column_reorder = config["COLUMN"]["reorder"].split(',')
 	column_limit= config["COLUMN"]["limit"].split(',')
 	column_limit_characters = is_num_cast(config["COLUMN"]["limit_characters"],decimal=False,boolean=False)
@@ -393,7 +416,7 @@ def main():
 
 	if '1' in post_merge: aux = path_temp
 	else: aux = path_destination
-	
+
 	#delete_tempfile(path_temp,filename,logtime,debug=False)
 
 	transform(
@@ -401,7 +424,7 @@ def main():
 		,header_start_row=header_start_row,header_adjust_model=header_adjust_model,original_datatype=original_datatype
 		,column_skip=column_skip,column_lower=column_lower,column_strip=column_strip,column_stop_first_blank=column_stop_first_blank
 		,column_drop=column_drop,column_drop_number=column_drop_number,column_not_null=column_not_null,column_add_file_control=column_add_file_control
-		,column_add=column_add,column_limit=column_limit,column_limit_characters=column_limit_characters
+		,column_add=column_add,column_add_sheet_value=column_add_sheet_value,column_add_sheet_value_name=column_add_sheet_value_name,column_limit=column_limit,column_limit_characters=column_limit_characters
 		,row_stop_first_blank=row_stop_first_blank,row_drop_duplicate=row_drop_duplicate,drop_thresh_blank=drop_thresh_blank
 		,post_merge=post_merge,logtime=logtime,debug=debug
 	)
@@ -418,7 +441,7 @@ def main():
 			path_file_in=path_config
 			,path_file_out=config["CONFIG"]["path_out"].replace("custom",windows_username)
 			,name_config=os.path.basename(abs_path_config)
-			,name_new_config=export_config_name
+			,name_new_config=f"{export_config_name}_{Path(filename).stem}"
 			,summary=config["CONFIG"]["summary"]
 			,commentary=config["CONFIG"]["commentary"]
 		)

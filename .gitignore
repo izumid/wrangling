@@ -12,9 +12,10 @@
 
 *img/*
 !img/.gitkeep
+config/*
+!config/config_default.ini
 
 #ignore specific files
-config/config.ini
 analyses.py
 
 # Ignore files with extension
