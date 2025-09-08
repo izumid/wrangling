@@ -239,8 +239,6 @@ def transform(
 
 							print(sheet.columns.to_list())
 							sheet = sheet.assign(**column_add)
-							print("AAAAAAAAAAAAA",column_add)
-							print(sheet.columns.to_list())
 							
 							if column_add_sheet_value != '':
 								for key in column_add_sheet_value.keys():
@@ -308,7 +306,7 @@ def join_header(path_temp,column_add_file_control,debug=False,logtime=False):
 
 
 # MARK: Join Data
-def join_dataset(path_temp,header_standardized,path_destination,filename,column_reorder,logtime,debug=False):
+def join_dataset(path_temp,header_standardized,path_destination,filename,column_reorder,column_add_missed,logtime,debug=False):
 	time_start =  datetime.datetime.now()
 	data = []
 	
@@ -321,9 +319,15 @@ def join_dataset(path_temp,header_standardized,path_destination,filename,column_
 				df = df.reindex(df.columns.union(header_standardized, sort=False), axis=1, fill_value=None)
 				df = df.reindex(header_standardized,axis=1)
 				df = df.dropna(axis=0, how="all")
-				if len(column_reorder) > 1: df = df[column_reorder]
-				data.append(df)
+				
+				if len(column_reorder) > 1:
+					if '1' in column_add_missed: 
+						for col in column_reorder:
+							if not col in df.columns.to_list(): df[col] = None
 
+					df = df[column_reorder]
+				
+				data.append(df)
 		data = pd.concat(data)
 
 		if not os.path.exists(path_destination): os.makedirs(path_destination)
@@ -402,6 +406,7 @@ def main():
 	
 
 	column_reorder = config["COLUMN"]["reorder"].split(',')
+	print(column_reorder)
 	column_limit= config["COLUMN"]["limit"].split(',')
 	column_limit_characters = is_num_cast(config["COLUMN"]["limit_characters"],decimal=False,boolean=False)
 
@@ -431,7 +436,16 @@ def main():
 
 	if '1' in post_merge:
 		header_standardized = join_header(path_temp=path_temp,column_add_file_control=column_add_file_control,debug=debug,logtime=logtime)
-		join_dataset(path_temp=path_temp,header_standardized=header_standardized,path_destination=path_destination,filename=filename,column_reorder=column_reorder,logtime=logtime,debug=False)
+		join_dataset(
+			path_temp=path_temp
+			,header_standardized=header_standardized
+			,path_destination=path_destination
+			,filename=filename
+			,column_reorder=column_reorder
+			,column_add_missed=config["COLUMN"]["add_missed"]
+			,logtime=logtime
+			,debug=False
+		)
 	
 	delete_tempfile(path_temp,filename,logtime,debug=False)
 		
