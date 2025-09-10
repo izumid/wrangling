@@ -23,6 +23,9 @@ def idx_name(var):
 	except: return  var
 
 def column_name_adjust(header):
+
+	header = [column_title if not '%' in column_title else column_title.replace('%', "Percentual") for column_title in header]
+
 	column = [
 		re.sub(
 			r'_+', '_',  # collapse multiple underscores into one
@@ -57,7 +60,7 @@ def header_transform(header_current, adjust_model):
 	for j in range(len(header_current)):
 		for i in range(len(adjust_model[0])):	
 			if header_current[j] in adjust_model[1][i]:
-				header_current[j] = adjust_model[0][i]
+				header_current[j] = adjust_model[0][i].strip()
 
 	return(header_current)
 
@@ -145,6 +148,7 @@ def transform(
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							
 							sheet.columns = sheet.columns.astype(str)
+							print("----------------------------------",sheet.columns.to_list())
 							header_current =  column_name_adjust(sheet.columns)
 
 							if not header_adjust_model is None: sheet.columns = header_transform(header_current, header_adjust_model)
@@ -207,7 +211,13 @@ def transform(
 
 							if '1' in column_lower:
 								for col in sheet.columns:
+									#print(f"column: {col}, type: {sheet[col].dtypes}")
+									check = sheet[col]
+									if  isinstance(check, pd.DataFrame):
+										print(f"{check.info()}, filename: {filename}, sheet: {name}")
+										print(check.head(5))
 									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.lower().str.strip()
+									
 
 							if '1' in column_strip:
 								for col in sheet.columns:
@@ -237,18 +247,15 @@ def transform(
 							
 							if not os.path.exists(path_destination): os.makedirs(path_destination)
 
-							print(sheet.columns.to_list())
 							sheet = sheet.assign(**column_add)
 							
 							if column_add_sheet_value != '':
 								for key in column_add_sheet_value.keys():
-									print(key,name.lower().replace(' ','_'))
 									if key in name.lower().replace(' ','_'):
 										sheet[column_add_sheet_value_name] = column_add_sheet_value[key]
 
-							debug_code(debug,f"{sheet.info()}\r\n{sheet.head()}")
+							#debug_code(debug,f"Sheet information: {sheet.info()}\r\n Sheat header: {sheet.head()}")
 
-							
 							sheet.to_feather(path_absolute_destination)
 
 							debug_code(debug,"09->Saved file in",path_absolute_destination)
@@ -323,7 +330,9 @@ def join_dataset(path_temp,header_standardized,path_destination,filename,column_
 				if len(column_reorder) > 1:
 					if '1' in column_add_missed: 
 						for col in column_reorder:
-							if not col in df.columns.to_list(): df[col] = None
+							if not col in df.columns.to_list(): 
+								df[col] = None
+								#df[col].astype(str)
 
 					df = df[column_reorder]
 				
@@ -347,6 +356,7 @@ def delete_tempfile(path_temp,filename,logtime,debug=False):
 	log_time(logtime,"Delete files",datetime.datetime.now()-ts)
 
 
+#MARK: Main
 def main():  
 	pd.set_option("display.max_columns", None)
 	warnings.filterwarnings('ignore') 
@@ -362,11 +372,11 @@ def main():
 		
 	# To extract data
 	windows_username= os.getlogin()
-	path_root = config["PATH"]["fileIn"].replace("custom",windows_username)
+	path_root = config["FILE"]["path_input"].replace("custom",windows_username)
 
 	post_merge = config["MODE"]["post_merge"]
 	root_path = os.getcwd()
-	path_destination = config["PATH"]["fileOut"].replace("custom",windows_username)
+	path_destination = config["FILE"]["path_output"].replace("custom",windows_username)
 	
 	path_temp = os.path.join(root_path,"temp")
 	if not os.path.exists(path_temp): os.makedirs(path_temp)
@@ -403,10 +413,8 @@ def main():
 	aux = [value.split(',') for value in moviment.split(";")]
 	column_add_sheet_value = dict([(sub_array[0].lower().replace(' ','_'), sub_array[1].replace(' ','')) for sub_array in aux])
 	column_add_sheet_value_name = k
-	
-
 	column_reorder = config["COLUMN"]["reorder"].split(',')
-	print(column_reorder)
+
 	column_limit= config["COLUMN"]["limit"].split(',')
 	column_limit_characters = is_num_cast(config["COLUMN"]["limit_characters"],decimal=False,boolean=False)
 
