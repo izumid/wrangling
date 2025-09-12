@@ -18,8 +18,8 @@
 - row: (bool)[0,1], default its index 0 (first row);
 - adjust_model: (list), separated list of elements to adjust column name based each index 0 name. First element denote the defaultname.
 - Comma separate elements of same column and semicolon different collumns. 
-	!Important, "adjust model" its executed after adjust header to lower case and change space to desired char, make sure to type values as your setted pattern;
-	Note: by default '%' char is changed to "Percentual";
+	1. Note: by default '%' char is changed to "Percentual", after execute the step below (2);
+	2. Important: "adjust model" its executed after adjust header to lower case and change space to desired char, make sure to type values as your setted pattern;
 
 
 #COLUMN

@@ -148,7 +148,6 @@ def transform(
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							
 							sheet.columns = sheet.columns.astype(str)
-							print("----------------------------------",sheet.columns.to_list())
 							header_current =  column_name_adjust(sheet.columns)
 
 							if not header_adjust_model is None: sheet.columns = header_transform(header_current, header_adjust_model)
@@ -405,14 +404,21 @@ def main():
 	column_stop_first_blank = config["COLUMN"]["stop_first_blank"]
 	column_add_file_control = config["COLUMN"]["add_file_control"]
 	column_add =  dict(config["ADD_COLUMN"])
-	
-	for k,v in column_add.items():
-		if ',' in v: key_pop = k
+	column_add_sheet_value = ''
+	column_add_sheet_value_name = ''
 
-	moviment = column_add.pop(key_pop)
-	aux = [value.split(',') for value in moviment.split(";")]
-	column_add_sheet_value = dict([(sub_array[0].lower().replace(' ','_'), sub_array[1].replace(' ','')) for sub_array in aux])
-	column_add_sheet_value_name = k
+	if column_add:
+		key_pop = False
+		for k,v in column_add.items():
+			if ',' in v: key_pop = k
+
+		if key_pop: 
+			column_by_sheet_name = column_add.pop(key_pop)
+			comma_splitted = [value.split(',') for value in column_by_sheet_name.split(';')]
+			column_add_sheet_value = dict([(sub_array[0].lower().replace(' ','_'), sub_array[1].replace(' ','')) for sub_array in comma_splitted])
+			column_add_sheet_value_name = k
+
+
 	column_reorder = config["COLUMN"]["reorder"].split(',')
 
 	column_limit= config["COLUMN"]["limit"].split(',')
@@ -456,8 +462,7 @@ def main():
 		)
 	
 	delete_tempfile(path_temp,filename,logtime,debug=False)
-		
-	
+
 	if export_config_name != "" and export_config_name != " ":
 		gc.generate_config_file(
 			path_file_in=path_config
