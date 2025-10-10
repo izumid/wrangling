@@ -109,9 +109,12 @@ def transform(
 	,row_stop_first_blank=False,row_drop_duplicate=False,drop_thresh_blank=False
 	,post_merge=False,logtime=False,debug=False
 ):
+	if not os.path.exists(path_root):
+		raise ValueError(lf.log_file(name="log_error",header="Multiple Sheet",datetime=datetime.datetime.today(),message=f"Path doesn't exists {path_root}"))
+	
 	try:
 		count = 0
-		for filename in sorted(os.listdir(path_root)):	
+		for filename in sorted(os.listdir(path_root)):
 			filename = os.path.join(path_root,filename)
 			if os.path.isfile(filename):
 				debug_code(debug,"01->Filename",filename)
@@ -148,11 +151,12 @@ def transform(
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							
 							sheet.columns = sheet.columns.astype(str)
+							print(sheet.columns)
 							header_current =  column_name_adjust(sheet.columns)
 
 							if not header_adjust_model is None: sheet.columns = header_transform(header_current, header_adjust_model)
 							else: sheet.columns = header_current
-
+							print(sheet.columns)
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							
 							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -240,7 +244,6 @@ def transform(
 							exc_idx = sheet.pop("excel_row")
 							sheet.insert(0,"excel_row",exc_idx)
 
-
 							if '1' in post_merge: path_absolute_destination = os.path.join(path_destination,f"{str(count)}_{name}.feather")
 							else: path_absolute_destination = os.path.join(path_destination,f"{name}.feather")
 							
@@ -254,7 +257,8 @@ def transform(
 										sheet[column_add_sheet_value_name] = column_add_sheet_value[key]
 
 							#debug_code(debug,f"Sheet information: {sheet.info()}\r\n Sheat header: {sheet.head()}")
-
+							
+							print(sheet.columns.to_list())
 							sheet.to_feather(path_absolute_destination)
 
 							debug_code(debug,"09->Saved file in",path_absolute_destination)
