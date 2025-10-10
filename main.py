@@ -149,14 +149,11 @@ def transform(
 							debug_code(debug, "04->Datataframe shape", sheet.shape)
 							
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-							
 							sheet.columns = sheet.columns.astype(str)
-							print(sheet.columns)
 							header_current =  column_name_adjust(sheet.columns)
 
 							if not header_adjust_model is None: sheet.columns = header_transform(header_current, header_adjust_model)
 							else: sheet.columns = header_current
-							print(sheet.columns)
 							# -=-=-= Header -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 							
 							# -=-=-= Columns -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -214,12 +211,13 @@ def transform(
 
 							if '1' in column_lower:
 								for col in sheet.columns:
-									#print(f"column: {col}, type: {sheet[col].dtypes}")
 									check = sheet[col]
 									if  isinstance(check, pd.DataFrame):
 										print(f"{check.info()}, filename: {filename}, sheet: {name}")
 										print(check.head(5))
-									if sheet[col].dtype == "object": sheet[col] = sheet[col].str.lower().str.strip()
+	
+									if sheet[col].dtype == "object": 
+										sheet[col] = sheet[col].str.lower().str.strip()
 									
 
 							if '1' in column_strip:
@@ -258,7 +256,6 @@ def transform(
 
 							#debug_code(debug,f"Sheet information: {sheet.info()}\r\n Sheat header: {sheet.head()}")
 							
-							print(sheet.columns.to_list())
 							sheet.to_feather(path_absolute_destination)
 
 							debug_code(debug,"09->Saved file in",path_absolute_destination)
@@ -464,7 +461,7 @@ def main():
 			,logtime=logtime
 			,debug=False
 		)
-	
+
 	delete_tempfile(path_temp,filename,logtime,debug=False)
 
 	if export_config_name != "" and export_config_name != " ":
